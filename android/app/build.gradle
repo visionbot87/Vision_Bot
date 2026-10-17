@@ -1,0 +1,20 @@
+plugins {
+    id 'com.android.application'
+}
+
+def visionBotUrl = providers.gradleProperty("VISION_BOT_URL").getOrElse("https://example.invalid/")
+
+android {
+    namespace 'com.visionbot.ai'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.visionbot.ai'
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+        buildConfigField 'String', 'VISION_BOT_URL', '"' + visionBotUrl.replace('\\', '\\\\').replace('\"', '\\"') + '"'
+    }
+    buildFeatures { buildConfig true }
+}
