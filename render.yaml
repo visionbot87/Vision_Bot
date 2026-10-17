@@ -1,8 +1,15 @@
+
 services:
   - type: web
     name: vision-bot
     runtime: node
     plan: free
+    region: singapore
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GEMINI_API_KEY
+        sync: false
