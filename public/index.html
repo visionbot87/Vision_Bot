@@ -4,127 +4,194 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#080b14">
-  <title>Vision Bot | J.A.R.V.I.S.</title>
-  <link rel="stylesheet" href="/styles.css">
-  <script src="/app.js" defer></script>
+  <title>Vision Bot | JARVIS</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at top, #10253a, #050a12 65%);
+      color: #eaf8ff;
+    }
+
+    .status {
+      position: fixed;
+      top: 18px;
+      left: 20px;
+      color: #76eaff;
+      font-size: 12px;
+      letter-spacing: 2px;
+    }
+
+    .center {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .orb {
+      width: 130px;
+      height: 130px;
+      margin: 0 auto 22px;
+      border-radius: 50%;
+      border: 1px solid #60e5ff;
+      box-shadow: 0 0 45px #00bfff45, inset 0 0 30px #00bfff30;
+      display: grid;
+      place-items: center;
+      font-size: 42px;
+      color: #8cecff;
+      animation: pulse 3s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      50% { box-shadow: 0 0 65px #00bfff70, inset 0 0 40px #00bfff50; }
+    }
+
+    h1 { letter-spacing: 7px; font-size: 27px; }
+    .muted { color: #8ca9bb; font-size: 14px; }
+
+    .chat {
+      width: min(650px, 100%);
+      margin: 26px auto 110px;
+      text-align: left;
+    }
+
+    #messages {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      background: #102031;
+      border: 1px solid #234156;
+      border-radius: 14px;
+      padding: 13px 16px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .user { border-color: #187c9c; }
+    .error { border-color: #a34a4a; }
+
+    .pill {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(700px, calc(100% - 24px));
+      padding: 10px;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      background: #081522ed;
+      border: 1px solid #2b536a;
+      border-radius: 22px;
+      box-shadow: 0 0 35px #00aaff25;
+      backdrop-filter: blur(18px);
+    }
+
+    button, input {
+      font: inherit;
+      color: #eaf8ff;
+      background: #10283a;
+      border: 1px solid #31566c;
+      border-radius: 13px;
+      padding: 12px;
+    }
+
+    button { cursor: pointer; }
+    button:hover { border-color: #67e7ff; }
+    button:disabled { opacity: .5; cursor: wait; }
+
+    #prompt {
+      min-width: 0;
+      flex: 1;
+      outline: none;
+    }
+
+    #mic { color: #82eaff; font-size: 19px; }
+    #send { background: #0a7598; }
+
+    .tools {
+      position: fixed;
+      top: 12px;
+      right: 14px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .tools button { font-size: 12px; }
+    #settings {
+      display: none;
+      position: fixed;
+      top: 58px;
+      right: 14px;
+      width: min(310px, calc(100% - 28px));
+      padding: 18px;
+      border: 1px solid #31566c;
+      border-radius: 16px;
+      background: #091522;
+    }
+
+    #settings input { width: 100%; margin: 8px 0; }
+
+    @media (max-width: 480px) {
+      .pill { bottom: 8px; gap: 5px; }
+      button, input { padding: 10px 8px; }
+      h1 { font-size: 22px; }
+    }
+  </style>
 </head>
 <body>
-  <header class="topbar">
-    <a class="brand" href="/">◈ <span>VISION<strong>BOT</strong></span></a>
-    <div class="top-actions">
-      <span class="model-tag">● GEMINI 2.5 FLASH</span>
-      <button id="settingsOpen" class="icon-btn" aria-label="Settings">⚙</button>
-    </div>
-  </header>
+  <div class="status" id="status">● JARVIS READY</div>
 
-  <main class="layout">
-    <section class="intro">
-      <div class="eyebrow">SYSTEM ONLINE / READY WHEN YOU ARE</div>
-      <h1>Your world.<br><span>Your command.</span></h1>
-      <p>Talk naturally. Think clearly. Get things done.</p>
-    </section>
+  <div class="tools">
+    <button id="chatMode">Chat</button>
+    <button id="writeMode">Writing</button>
+    <button id="settingsBtn">⚙ Settings</button>
+  </div>
 
-    <section class="workspace">
-      <nav class="sidebar" aria-label="Workspace">
-        <small>WORKSPACE</small>
-        <button class="nav-item active" data-mode="voice">◉ <span>Voice Mode</span></button>
-        <button class="nav-item" data-mode="chat">▤ <span>Chat Mode</span></button>
-        <button class="nav-item" data-mode="writing">✎ <span>Writing</span></button>
-        <div class="sidebar-bottom">● J.A.R.V.I.S. CORE<br><small>VISION BOT / 1.0</small></div>
-      </nav>
+  <div id="settings">
+    <strong>Vision Bot Settings</strong>
+    <p class="muted">Model: Gemini 2.5 Flash</p>
+    <label for="voiceSelect">Voice response</label>
+    <select id="voiceSelect" style="width:100%;margin:8px 0;padding:10px;background:#10283a;color:white">
+      <option value="on">Speak replies</option>
+      <option value="off">Text only</option>
+    </select>
+    <p class="muted">API key ko server environment mein configure karein, browser mein nahi.</p>
+    <button id="closeSettings">Close</button>
+  </div>
 
-      <section class="main-panel">
-        <div class="panel-heading">
-          <div>
-            <small id="modeKicker">VOICE INTERFACE</small>
-            <h2 id="modeTitle">Speak to J.A.R.V.I.S.</h2>
-            <p id="modeDescription">Press Tab or tap the core to start voice mode.</p>
-          </div>
-          <span class="standby" id="sessionState">● STANDBY</span>
+  <main class="center">
+    <div>
+      <div class="orb">J</div>
+      <h1>VISION BOT</h1>
+      <p class="muted" id="subtitle">Your personal AI assistant</p>
+      <p class="muted">Press Tab to activate voice input</p>
+      <section class="chat" id="chat">
+        <div id="messages">
+          <div class="message">JARVIS online. Aap kya karna chahte hain?</div>
         </div>
-
-        <section id="voiceView" class="view voice-view">
-          <button id="voiceCore" class="voice-core" aria-label="Start voice recognition">
-            <span>V</span><i>•••••</i>
-          </button>
-          <div id="voiceStatus" class="voice-status">VOICE STANDBY</div>
-          <p id="voiceCaption" class="voice-caption">Your assistant is ready.</p>
-          <div class="voice-actions">
-            <button id="voiceToggle" class="primary">🎙 Start listening</button>
-            <button id="voiceStop" class="secondary" disabled>Stop</button>
-          </div>
-          <div class="transcript">
-            <small>LIVE TRANSCRIPT</small>
-            <p id="transcriptText">Your spoken words will appear here…</p>
-          </div>
-          <p class="keyboard-hint"><kbd>Tab</kbd> Start voice <span>·</span> <kbd>Esc</kbd> Stop voice</p>
-        </section>
-
-        <section id="chatView" class="view hidden">
-          <div id="chatMessages" class="messages" aria-live="polite">
-            <div class="message assistant">
-              <b>V</b><div><small>J.A.R.V.I.S.</small><p>Hello. I'm ready to help. What would you like to work on?</p></div>
-            </div>
-          </div>
-          <form id="chatForm" class="composer">
-            <textarea id="chatInput" rows="2" placeholder="Ask J.A.R.V.I.S. anything…" aria-label="Message"></textarea>
-            <button class="primary send" type="submit">Send ↗</button>
-          </form>
-          <small class="hint">Enter to send · Shift + Enter for a new line</small>
-        </section>
-
-        <section id="writingView" class="view hidden">
-          <div class="writing-heading"><span>✎</span><div><h3>Writing Studio</h3><p>Draft, rewrite, polish, or plan your next piece.</p></div></div>
-          <form id="writingForm" class="writing-form">
-            <label for="writingTask">WHAT WOULD YOU LIKE TO WRITE?</label>
-            <textarea id="writingTask" rows="5" placeholder="Example: Write a professional email to a customer…"></textarea>
-            <button class="primary" type="submit">Create draft ↗</button>
-          </form>
-          <div id="writingResult" class="result hidden">
-            <div class="result-top"><small>YOUR DRAFT</small><button id="copyDraft" class="text-btn" type="button">Copy text</button></div>
-            <pre id="draftText"></pre>
-          </div>
-        </section>
-
-        <footer class="panel-footer">
-          <span>● J.A.R.V.I.S. CORE</span>
-          <span>GEMINI 2.5 FLASH</span>
-          <span id="connectionLabel">CHECKING SERVER…</span>
-        </footer>
       </section>
-    </section>
-    <footer class="page-footer">VISION BOT <span>ONE INTERFACE. THREE WAYS TO WORK.</span></footer>
+    </div>
   </main>
 
-  <div id="settingsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-    <section class="settings">
-      <div class="settings-top">
-        <div><small>PREFERENCES</small><h2 id="settingsTitle">Settings</h2></div>
-        <button id="settingsClose" class="icon-btn" aria-label="Close settings">×</button>
-      </div>
-      <p class="settings-desc">Choose a mode. Your assistant identity stays fixed as J.A.R.V.I.S.</p>
+  <form class="pill" id="commandForm">
+    <button id="mic" type="button" title="Voice input">🎙</button>
+    <input id="prompt" autocomplete="off" placeholder="Talk to JARVIS..." aria-label="Command">
+    <button id="send" type="submit">Send</button>
+  </form>
 
-      <small class="section-label">OPEN A MODE</small>
-      <button class="mode-choice" data-mode="voice"><span>◉</span><div><b>Voice Mode</b><small>Speak using your microphone</small></div>↗</button>
-      <button class="mode-choice" data-mode="chat"><span>▤</span><div><b>Chat Mode</b><small>Type and receive AI replies</small></div>↗</button>
-      <button class="mode-choice" data-mode="writing"><span>✎</span><div><b>Writing Mode</b><small>Create drafts and polished text</small></div>↗</button>
-
-      <div class="engine">
-        <small class="section-label">FIXED AI ENGINE</small>
-        <div class="engine-row"><span>✦</span><div><b>Google Gemini 2.5 Flash</b><small>Default model · assistant switching disabled</small></div><strong>DEFAULT</strong></div>
-      </div>
-
-      <div class="key-section">
-        <label for="apiKeyInput" class="section-label">OPTIONAL GEMINI API KEY</label>
-        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste key for this browser session">
-        <p>Safer option: set GEMINI_API_KEY in Render Environment. Never share your API key publicly.</p>
-        <button id="saveKey" class="secondary" type="button">Use for this session</button>
-        <small id="keyStatus" role="status"></small>
-      </div>
-      <div class="settings-bottom"><span>● Fixed assistant identity</span><button id="settingsDone" class="primary">Done</button></div>
-    </section>
-  </div>
-  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js"></script>
 </body>
 </html>
