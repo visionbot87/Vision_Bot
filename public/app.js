@@ -1,140 +1,444 @@
-const $ = (id) => document.getElementById(id);
-const state = { history: [], image: null, busy: false, recognition: null, listening: false, sessionKeys: { gemini: '', grok: '' } };
-const CHAT_STORAGE_KEY = 'visionbot.savedHistory.v1';
-const stored = {
-  get(name, fallback = '') { try { return localStorage.getItem('visionbot.' + name) ?? fallback; } catch { return fallback; } },
-  set(name, value) { try { localStorage.setItem('visionbot.' + name, value); } catch {} }
-};
-let toastTimer;
-function toast(message) { const el = $('toast'); el.textContent = message; el.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3200); }
-function setFeedback(message, error = false) { $('settingsFeedback').textContent = message; $('settingsFeedback').style.color = error ? '#ffb6a5' : 'var(--cyan)'; }
-function updateGreeting() { const name = stored.get('name').trim(); $('greeting').innerHTML = name ? `Welcome back, <span>${escapeHtml(name)}</span>` : 'Welcome to <span>Vision Bot</span>'; }
-function saveHistory() { try { stored.set('savedHistory.v1', JSON.stringify({ history: state.history.slice(-12), messages: Array.from($('messages').querySelectorAll('.message')).slice(-24).map(el => ({ html: el.innerHTML, className: el.className })) })); } catch {} }
-function restoreHistory() { try { const saved = JSON.parse(stored.get('savedHistory.v1', 'null')); if (!saved) return; state.history = Array.isArray(saved.history) ? saved.history.slice(-12) : []; if (Array.isArray(saved.messages) && saved.messages.length) { $('messages').innerHTML = ''; for (const item of saved.messages) { if (!item || typeof item.html !== 'string' || !['message user','message assistant','message assistant error'].includes(item.className)) continue; const el = document.createElement('div'); el.className = item.className; el.innerHTML = item.html; $('messages').appendChild(el); } $('messages').scrollTop = $('messages').scrollHeight; } } catch {} }
-function enterVisionBot() { $('welcomeGate').classList.add('leaving'); setTimeout(() => { $('welcomeGate').classList.add('hidden'); }, 600); }
-function initWelcome() { const remembered = stored.get('welcomeRemembered', 'false') === 'true'; if (remembered) { enterVisionBot(); return; } $('getStarted').addEventListener('click', () => { $('welcomeStepStart').classList.add('hidden'); $('welcomeProfile').classList.remove('hidden'); $('welcomeName').focus(); }); $('welcomeProfile').addEventListener('submit', e => { e.preventDefault(); const name = $('welcomeName').value.trim(); if (name) stored.set('name', name); if ($('rememberDevice').checked) stored.set('welcomeRemembered', 'true'); updateGreeting(); enterVisionBot(); }); }
-function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function formatText(s) { return escapeHtml(s).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>'); }
-function addMessage(role, text, isError = false) {
-  const empty = document.querySelector('.empty-chat'); if (empty) empty.remove();
-  const el = document.createElement('div'); el.className = `message ${role === 'user' ? 'user' : 'assistant'}${isError ? ' error' : ''}`;
-  const speaker = role === 'user' ? 'YOU' : (isError ? 'SYSTEM MESSAGE' : ($('roleSelect').selectedOptions[0]?.text.split(' · ')[0] || 'J.A.R.V.I.S.'));
-  el.innerHTML = `<span class="speaker">${escapeHtml(speaker)}</span><div>${formatText(text)}</div>`;
-  $('messages').appendChild(el); $('messages').scrollTop = $('messages').scrollHeight; return el;
-}
-function showTyping() { const el = document.createElement('div'); el.className = 'typing'; el.id = 'typing'; el.textContent = 'Vision Bot is thinking…'; $('messages').appendChild(el); $('messages').scrollTop = $('messages').scrollHeight; }
-function removeTyping() { $('typing')?.remove(); }
-function setBusy(value) { state.busy = value; $('sendBtn').disabled = value; $('sendBtn').textContent = value ? 'Thinking…' : 'Send ↗'; $('systemState').lastElementChild.textContent = value ? 'PROCESSING REQUEST' : 'J.A.R.V.I.S. READY'; }
-async function sendMessage(textOverride) {
-  if (state.busy) return;
-  const message = (textOverride ?? $('messageInput').value).trim();
-  if (!message && !state.image) { $('messageInput').focus(); return; }
-  const provider = $('providerSelect')?.value || stored.get('provider', 'gemini');
-  const key = state.sessionKeys[provider] || '';
-  const model = $('modelInput')?.value.trim() || (provider === 'grok' ? 'grok-3-mini' : 'gemini-2.5-flash');
-  if (!$('connection').classList.contains('online') && !key) { openSettings(); setFeedback(`Add your ${provider === 'grok' ? 'Grok/xAI' : 'Gemini'} API key before sending a message.`, true); return; }
-  if (message) addMessage('user', message + (state.image ? `\n[Image attached: ${state.image.name}]` : ''));
-  else addMessage('user', `[Please analyze this image: ${state.image.name}]`);
-  $('messageInput').value = ''; $('messageInput').style.height = 'auto';
-  if (provider === 'grok' && state.image) { addMessage('model', 'Image analysis is currently available through Gemini in this build. Switch provider to Gemini to analyze this image.', true); return; }
-  const imageForRequest = state.image ? { data: state.image.data, mimeType: state.image.mimeType } : null;
-  state.image = null; $('imagePreview').classList.add('hidden'); $('imageInput').value = '';
-  setBusy(true); showTyping();
-  try {
-    const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, role: $('roleSelect').value, history: state.history, apiKey: key, provider, model, image: imageForRequest }) });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || 'Request failed.');
-    removeTyping(); addMessage('model', data.answer);
-    if (message) state.history.push({ role: 'user', text: message });
-    state.history.push({ role: 'model', text: data.answer }); state.history = state.history.slice(-12); saveHistory();
-    if ($('speakReplies').checked) speak(data.answer);
-  } catch (err) { removeTyping(); addMessage('model', err.message || 'Something went wrong.', true); }
-  finally { setBusy(false); }
-}
-function speak(text) { if (!('speechSynthesis' in window)) { toast('Speech output is not supported in this browser.'); return; } window.speechSynthesis.cancel(); const utterance = new SpeechSynthesisUtterance(text.slice(0, 4500)); utterance.rate = Number(stored.get('voiceStyle','1')) || 1; utterance.pitch = .96; window.speechSynthesis.speak(utterance); }
-function openSettings() { $('displayName').value = stored.get('name'); $('providerSelect').value = stored.get('provider', 'gemini'); $('modelInput').value = stored.get('model', $('providerSelect').value === 'grok' ? 'grok-3-mini' : 'gemini-2.5-flash'); $('apiKey').value = state.sessionKeys[$('providerSelect').value] || ''; updateProviderFields(); $('speakReplies').checked = stored.get('speakReplies', 'true') === 'true'; $('voiceFirst').checked = stored.get('voiceFirst', 'false') === 'true'; $('settingsModal').classList.remove('hidden'); setFeedback(''); }
-function closeSettings() { $('settingsModal').classList.add('hidden'); }
-async function checkServer() {
-  try { const r = await fetch('/api/status'); const data = await r.json(); $('connection').classList.add('online'); $('connection').classList.remove('offline'); $('connection').innerHTML = '<i></i> System connected'; if (data.providers?.gemini || data.providers?.grok) $('connection').title = 'One or more AI providers are configured on the server'; }
-  catch { $('connection').classList.add('offline'); $('connection').innerHTML = '<i></i> Server unavailable'; }
-}
-function setupRecognition() {
-  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!Recognition) { toast('Speech recognition is not available here. Type your message instead.'); return; }
-  if (state.listening && state.recognition) { state.recognition.stop(); return; }
-  const rec = new Recognition(); state.recognition = rec; rec.lang = stored.get('voiceLang', 'en-IN') === 'hinglish' ? 'hi-IN' : stored.get('voiceLang', 'en-IN'); rec.interimResults = true; rec.continuous = false;
-  rec.onstart = () => { state.listening = true; $('talkLabel').textContent = 'Listening… tap to stop'; $('talkBtn').classList.add('listening'); $('systemState').lastElementChild.textContent = 'LISTENING'; };
-  rec.onresult = event => { let finalText = ''; let interim = ''; for (let i = event.resultIndex; i < event.results.length; i++) { if (event.results[i].isFinal) finalText += event.results[i][0].transcript; else interim += event.results[i][0].transcript; } $('messageInput').value = (finalText || interim).trim(); if (finalText.trim()) { $('messageInput').value = finalText.trim(); if (stored.get('voiceFirst', 'false') === 'true') sendMessage(finalText.trim()); } };
-  rec.onerror = event => toast(event.error === 'not-allowed' ? 'Microphone permission was denied.' : `Voice input: ${event.error}. You can type instead.`);
-  rec.onend = () => { state.listening = false; $('talkLabel').textContent = 'Tap to talk'; $('talkBtn').classList.remove('listening'); if (!state.busy) $('systemState').lastElementChild.textContent = 'J.A.R.V.I.S. READY'; };
-  try { rec.start(); } catch { toast('Could not start voice input. Try again.'); }
-}
-$('chatForm').addEventListener('submit', e => { e.preventDefault(); sendMessage(); });
-$('messageInput').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
-$('messageInput').addEventListener('input', () => { $('messageInput').style.height = 'auto'; $('messageInput').style.height = Math.min($('messageInput').scrollHeight, 150) + 'px'; });
-$('talkBtn').addEventListener('click', setupRecognition);
-$('settingsOpen').addEventListener('click', openSettings); $('settingsCard').addEventListener('click', openSettings); $('settingsClose').addEventListener('click', closeSettings);
-$('settingsModal').addEventListener('click', e => { if (e.target.dataset.close) closeSettings(); });
-$('settingsForm').addEventListener('submit', e => { e.preventDefault(); stored.set('name', $('displayName').value.trim()); const activeProvider = $('providerSelect').value; state.sessionKeys[activeProvider] = $('apiKey').value.trim(); stored.set('provider', activeProvider); stored.set('model', $('modelInput').value.trim()); stored.set('speakReplies', String($('speakReplies').checked)); stored.set('voiceFirst', String($('voiceFirst').checked)); updateGreeting(); setFeedback('Settings saved on this browser.'); toast('Vision Bot settings saved.'); setTimeout(closeSettings, 600); });
-function updateProviderFields() { const provider = $('providerSelect').value; $('apiKeyLabel').textContent = provider === 'grok' ? 'Grok / xAI API key' : 'Gemini API key'; $('apiKey').placeholder = provider === 'grok' ? 'Paste your xAI API key' : 'Paste your Google Gemini API key'; if (!$('modelInput').value.trim() || $('modelInput').value === 'gemini-2.5-flash' || $('modelInput').value === 'grok-3-mini') $('modelInput').value = provider === 'grok' ? 'grok-3-mini' : 'gemini-2.5-flash'; $('apiKey').value = state.sessionKeys[provider] || ''; }
-$('providerSelect').addEventListener('change', () => { $('modelInput').value = $('providerSelect').value === 'grok' ? 'grok-3-mini' : 'gemini-2.5-flash'; updateProviderFields(); });
-$('testKey').addEventListener('click', async () => { const provider = $('providerSelect').value; const key = $('apiKey').value.trim(); if (!key) return setFeedback(`Enter your ${provider === 'grok' ? 'Grok/xAI' : 'Gemini'} API key first.`, true); setFeedback(`Checking ${provider === 'grok' ? 'xAI/Grok' : 'Google Gemini'}…`); try { const r = await fetch('/api/test-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ provider, apiKey: key }) }); const d = await r.json(); if (!r.ok || !d.valid) throw new Error(d.error || 'Provider rejected this key.'); state.sessionKeys[provider] = key; if (Array.isArray(d.models) && d.models.length) { const current = $('modelInput').value.trim(); if (!d.models.includes(current)) $('modelInput').value = d.defaultModel || d.models[0]; setFeedback(d.message + '\nAvailable models: ' + d.models.slice(0, 30).join(', ') + (d.models.length > 30 ? ', …' : '')); } else { setFeedback(d.message + (d.compatible ? ' You can now chat.' : ' Check model access or quota.')); } } catch (err) { setFeedback(err.message, true); } });
-$('imageInput').addEventListener('change', async e => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 7 * 1024 * 1024) { toast('Choose an image smaller than 7 MB.'); e.target.value = ''; return; } if (!['image/png','image/jpeg','image/webp'].includes(file.type)) { toast('Please choose a PNG, JPEG, or WebP image.'); return; } const data = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.onerror = reject; reader.readAsDataURL(file); }); state.image = { name: file.name, data, mimeType: file.type }; $('imageName').textContent = 'Image ready: ' + file.name; $('imagePreview').classList.remove('hidden'); $('messageInput').placeholder = 'Ask a question about this image…'; $('messageInput').focus(); });
-$('screenBtn').addEventListener('click', () => { toast('Choose a screenshot or image manually. Nothing is captured automatically.'); $('imageInput').click(); });
-$('removeImage').addEventListener('click', () => { state.image = null; $('imagePreview').classList.add('hidden'); $('imageInput').value = ''; });
-$('clearChat').addEventListener('click', () => { state.history = []; $('messages').innerHTML = '<div class="empty-chat"><div class="empty-mark">✦</div><b>Your conversation starts here</b><p>Ask a question, dictate a message, or choose an image to analyze.</p></div>'; stored.set('savedHistory.v1', ''); window.speechSynthesis?.cancel(); });
-document.querySelectorAll('[data-prompt]').forEach(btn => btn.addEventListener('click', () => { $('messageInput').value = btn.dataset.prompt; $('messageInput').focus(); $('chatForm').requestSubmit(); }));
-updateGreeting(); restoreHistory(); initWelcome(); checkServer();
-if (stored.get('voiceFirst', 'false') === 'true') $('talkLabel').textContent = 'Tap to talk';
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-// Feature Hub: practical browser-side tools; system-level actions remain in the Windows companion.
-const featureCopy = {
- creator: ['Creator Studio', `<p class="field-help">Describe the website or app you want. JARVIS will prepare a plan in chat; use LEO for implementation. Generated code is advice until you review and run it.</p><label class="field-label" for="creatorPrompt">What should I build?</label><textarea id="creatorPrompt" rows="4" placeholder="Build a mobile-first website for my business…"></textarea><button class="primary-btn" id="creatorBuild">Create plan in chat ↗</button>`],
- memory: ['Memory & Projects', `<p class="field-help">Notes are stored only in this browser on this device. They are not secure account memory and will not automatically be sent to the AI.</p><label class="field-label" for="memoryTitle">Note / project name</label><input id="memoryTitle" placeholder="e.g. Vision Bot v2 roadmap"><label class="field-label" for="memoryText">Details</label><textarea id="memoryText" rows="4" placeholder="Save a requirement, idea, or next step…"></textarea><button class="primary-btn" id="saveMemory">Save local note</button><div id="memoryList" class="local-note-list"></div>`],
- theme: ['Theme Studio', `<label class="field-label" for="themeChoice">Color theme</label><select id="themeChoice"><option value="obsidian">Obsidian + Copper</option><option value="emerald">Emerald + Obsidian</option><option value="amethyst">Amethyst + Onyx</option><option value="titanium">Titanium + Champagne</option><option value="classic">Classic Cyan</option></select><label class="field-label" for="glowLevel">Glow intensity</label><input id="glowLevel" type="range" min="0" max="1" step="0.1" value="0.5"><label class="field-label" for="motionChoice">Animation strength</label><select id="motionChoice"><option value="full">Cinematic</option><option value="reduced">Reduced motion</option></select><button class="primary-btn" id="saveTheme">Apply theme</button>`],
- voice: ['Voice & Languages', `<p class="field-help">Voice input and speech synthesis depend on your browser/OS. The app does not promise always-on listening inside a web page.</p><label class="field-label" for="voiceLang">Recognition language</label><select id="voiceLang"><option value="en-IN">English (India)</option><option value="hi-IN">Hindi</option><option value="en-US">English (US)</option></select><label class="field-label" for="voiceStyle">Speech rate</label><input id="voiceStyle" type="range" min="0.7" max="1.3" step="0.1" value="1"><button class="primary-btn" id="saveVoice">Save voice settings</button><p class="field-help">Hinglish auto-detection varies by browser. Choose Hindi or English for more reliable recognition.</p>`],
- wake: ['Hey JARVIS Wake Word', `<p>Use the separate Windows companion included in this bundle to try the local <b>“Hey JARVIS”</b> wake word.</p><ol><li>Extract the bundle.</li><li>Open <code>visionbot_wakeword/INSTALL_VISION_BOT.bat</code>.</li><li>Then run <code>START_VISION_BOT.bat</code>.</li></ol><p class="field-help">Experimental: the mic stays active while the companion runs. Wake detection is intended to be local, but speech command transcription currently uses Google online speech recognition. iPhone does not allow continuous custom wake-word listening for ordinary third-party apps.</p><button class="primary-btn" id="wakePrompt">Show companion setup in chat</button>`],
- devices: ['Trusted Devices & QR Pairing', `<p class="field-help">Secure device pairing needs the companion/server to issue short-lived tokens. This UI does not generate a fake QR or claim a device is paired.</p><label class="field-label">Pairing status</label><div class="local-status">No trusted devices paired in this browser.</div><ul><li>Use unique, short-lived pairing tokens.</li><li>Approve permissions per device and action.</li><li>Revoke access when a device is lost.</li></ul><button class="primary-btn" id="devicePrompt">Prepare secure pairing plan</button>`],
- files: ['Files & Universal Clipboard', `<p class="field-help">Export your visible chat, copy selected text, or save a local text note. Cross-device universal clipboard and direct file transfer need a paired companion and explicit permission.</p><button class="primary-btn" id="exportChat">Export chat as TXT</button> <button class="quiet-btn" id="copyLast">Copy latest assistant reply</button><label class="field-label" for="localFile">Read a text file locally</label><input id="localFile" type="file" accept="text/plain,.md,.txt"><pre id="localFilePreview" class="local-preview"></pre>`],
- notifications: ['Smart Notifications', `<p class="field-help">This only requests browser notification permission. It does not monitor messages, apps, or your device in the background.</p><button class="primary-btn" id="enableNotifications">Enable browser notifications</button><button class="quiet-btn" id="testNotification">Send test notification</button><p id="notificationStatus" class="feedback"></p>`],
- offline: ['Offline Emergency Controls', `<p>When internet or AI is unavailable, these local tools still work in this browser:</p><ul><li>Save and view local emergency notes.</li><li>Export chat history.</li><li>Open this feature guide.</li></ul><p class="field-help">AI answers, live research, wake-word model downloads, and remote device control may require internet or the Windows companion. This is not an emergency-services replacement.</p><button class="primary-btn" id="offlineNote">Create an offline note</button>`],
- providers: ['AI Providers', `<p class="field-help">Gemini 2.5 Flash and Grok/xAI text chat adapters are included. Choose the provider in Settings and test its matching key to list models available to your account. Image analysis currently uses Gemini only.</p><label class="field-label">Current provider</label><div class="local-status">Gemini 2.5 Flash / Grok</div><p>Specialist roles: JARVIS, ULTRON, FRIDAY, EDITH, CALITH and LEO.</p><button class="primary-btn" id="providerSettings">Open API settings</button>`],
- privacy: ['Privacy & Security', `<p>Use these controls to manage data saved by this browser.</p><button class="primary-btn" id="exportPrivacy">Export local notes</button> <button class="quiet-btn" id="clearLocalNotes">Delete local notes</button><button class="quiet-btn" id="clearLocalHistory">Delete saved chat history</button><p class="field-help">Clearing this browser does not delete server logs, provider-side records, downloads, or data saved in other browsers/devices. Never place API keys in public HTML or a public repository.</p>`],
- remote: ['Remote Desktop & File Transfer', `<p class="field-help">Remote desktop, universal clipboard, notifications from other apps, and secure file transfer need a separately installed companion with explicit OS permissions. The current web app only supports the existing safe URL-opening endpoint when configured.</p><ul><li>PC → PC: install and pair a companion on each PC.</li><li>PC → Android: companion app and Android permissions required.</li><li>iPhone: use supported Shortcuts/app integrations; background control is restricted.</li></ul><button class="primary-btn" id="remotePrompt">Prepare remote setup checklist</button>`]
-};
-function showFeature(key) {
- const item=featureCopy[key]; if(!item)return;
- $('featureModalTitle').textContent=item[0]; $('featureBody').innerHTML=item[1]; $('featureModal').classList.remove('hidden');
- const bind=(id,fn)=>{const el=$(id);if(el)el.addEventListener('click',fn,{once:true});};
- const promptChat=(text)=>{closeFeature(); $('messageInput').value=text; $('chatForm').requestSubmit();};
- if(key==='creator') bind('creatorBuild',()=>promptChat('Act as LEO, my website creator. Create a practical implementation plan and starter code for this request: '+$('creatorPrompt').value.trim()));
- if(key==='memory'){renderLocalNotes();bind('saveMemory',()=>{const notes=JSON.parse(stored.get('localNotes','[]'));const title=$('memoryTitle').value.trim();const body=$('memoryText').value.trim();if(!title||!body){toast('Enter a note title and details.');return;}notes.unshift({title,body,created:new Date().toLocaleString()});stored.set('localNotes',JSON.stringify(notes.slice(0,100)));$('memoryTitle').value='';$('memoryText').value='';renderLocalNotes();toast('Saved locally on this device.');});}
- if(key==='theme'){ $('themeChoice').value=stored.get('themeChoice','classic'); $('glowLevel').value=stored.get('glowLevel','0.5'); $('motionChoice').value=stored.get('motionChoice','full'); bind('saveTheme',()=>{stored.set('themeChoice',$('themeChoice').value);stored.set('glowLevel',$('glowLevel').value);stored.set('motionChoice',$('motionChoice').value);applyTheme();toast('Theme applied.');}); }
- if(key==='voice'){ $('voiceLang').value=stored.get('voiceLang','en-IN'); $('voiceStyle').value=stored.get('voiceStyle','1'); bind('saveVoice',()=>{stored.set('voiceLang',$('voiceLang').value);stored.set('voiceStyle',$('voiceStyle').value);toast('Voice settings saved.');}); }
- if(key==='wake') bind('wakePrompt',()=>promptChat('Give me the exact Windows setup checklist for the included experimental Hey JARVIS wake-word companion. Clearly state which steps I must do myself.'));
- if(key==='devices') bind('devicePrompt',()=>promptChat('Design secure QR device pairing for Vision Bot using short-lived one-time tokens, explicit per-device permissions, approval prompts, expiry and revocation. Do not claim any device is paired yet.'));
- if(key==='files'){bind('exportChat',exportChat);bind('copyLast',async()=>{const msgs=[...document.querySelectorAll('.message.assistant')];const text=msgs.at(-1)?.innerText||'';if(!text)return toast('No assistant reply to copy.');try{await navigator.clipboard.writeText(text);toast('Latest reply copied.');}catch{toast('Clipboard permission unavailable.');}});bind('localFile',()=>{});const f=$('localFile');f?.addEventListener('change',async()=>{const file=f.files?.[0];if(file){$('localFilePreview').textContent=(await file.text()).slice(0,6000);}});}
- if(key==='notifications'){ $('notificationStatus').textContent='Permission: '+(window.Notification?Notification.permission:'not supported');bind('enableNotifications',async()=>{if(!window.Notification)return toast('Notifications are not supported.');const p=await Notification.requestPermission();$('notificationStatus').textContent='Permission: '+p;});bind('testNotification',()=>{if(window.Notification?.permission==='granted')new Notification('Vision Bot',{body:'Browser notifications are enabled.'});else toast('Enable notification permission first.');});}
- if(key==='offline') bind('offlineNote',()=>{const n=prompt('Write an offline note:');if(n){const notes=JSON.parse(stored.get('localNotes','[]'));notes.unshift({title:'Offline note',body:n,created:new Date().toLocaleString()});stored.set('localNotes',JSON.stringify(notes.slice(0,100)));toast('Offline note saved on this device.');}});
- if(key==='providers') bind('providerSettings',()=>{closeFeature();openSettings();});
- if(key==='privacy'){bind('exportPrivacy',()=>downloadText('visionbot-local-notes.txt',stored.get('localNotes','[]')));bind('clearLocalNotes',()=>{if(confirm('Delete all local Vision Bot notes from this browser?')){stored.set('localNotes','[]');toast('Local notes deleted.');}});bind('clearLocalHistory',()=>{if(confirm('Delete saved chat history from this browser?')){stored.set('savedHistory.v1','');state.history=[];toast('Saved chat history deleted.');}});}
- if(key==='remote') bind('remotePrompt',()=>promptChat('Create a secure implementation checklist for Vision Bot remote desktop, file transfer and universal clipboard. Separate what works in a browser from what requires a Windows/Android companion and permissions.'));
-}
-function closeFeature(){ $('featureModal').classList.add('hidden'); }
-function downloadText(filename,text){const blob=new Blob([text],{type:'text/plain;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function exportChat(){const text=[...document.querySelectorAll('.message')].map(el=>el.innerText).join('\n\n');downloadText('visionbot-chat.txt',text||'No chat messages yet.');}
-function renderLocalNotes(){const el=$('memoryList');if(!el)return;const notes=JSON.parse(stored.get('localNotes','[]'));el.innerHTML=notes.length?notes.map((n,i)=>`<article class="local-note"><b>${escapeHtml(n.title)}</b><small>${escapeHtml(n.created||'')}</small><p>${escapeHtml(n.body)}</p><button class="quiet-btn" data-delete-note="${i}">Delete</button></article>`).join(''):'<p class="field-help">No local notes saved yet.</p>';el.querySelectorAll('[data-delete-note]').forEach(b=>b.addEventListener('click',()=>{const list=JSON.parse(stored.get('localNotes','[]'));list.splice(Number(b.dataset.deleteNote),1);stored.set('localNotes',JSON.stringify(list));renderLocalNotes();}));}
-function applyTheme(){const t=stored.get('themeChoice','classic');const palettes={classic:['#00eaff','#087bff'],obsidian:['#d79b62','#8d603c'],emerald:['#35e0a1','#0b8d68'],amethyst:['#c5a2ff','#805ad5'],titanium:['#e6d4a8','#9a8b68']};const p=palettes[t]||palettes.classic;document.documentElement.style.setProperty('--cyan',p[0]);document.documentElement.style.setProperty('--blue',p[1]);document.documentElement.style.setProperty('--glow-strength',stored.get('glowLevel','0.5'));if(stored.get('motionChoice','full')==='reduced')document.documentElement.classList.add('reduce-motion');else document.documentElement.classList.remove('reduce-motion');}
-document.querySelectorAll('[data-feature]').forEach(el=>el.addEventListener('click',()=>showFeature(el.dataset.feature)));
-$('featureClose')?.addEventListener('click',closeFeature);$('featureModal')?.addEventListener('click',e=>{if(e.target.dataset.featureClose)closeFeature();});
-applyTheme();
+(() => {
+  "use strict";
 
+  const $ = id => document.getElementById(id);
+  const state = {
+    mode: "voice",
+    listening: false,
+    busy: false,
+    recognition: null,
+    history: [],
+    apiKey: sessionStorage.getItem("visionbot_key") || ""
+  };
 
-$('openOnPc').addEventListener('click', async () => {
-  const token = $('controlToken').value.trim(); const url = $('openUrlInput').value.trim();
-  if (!token) { $('ecosystemFeedback').textContent = 'Enter the pairing token configured on your PC.'; $('ecosystemFeedback').style.color = '#ffb6a5'; return; }
-  $('ecosystemFeedback').textContent = 'Sending command to PC…'; $('ecosystemFeedback').style.color = 'var(--cyan)';
-  try { const r = await fetch('/api/ecosystem/open-url', { method: 'POST', headers: {'Content-Type':'application/json','x-device-control-token':token}, body: JSON.stringify({url}) }); const d = await r.json(); if (!r.ok) throw new Error(d.error || 'PC command failed.'); $('ecosystemFeedback').textContent = d.message; }
-  catch (err) { $('ecosystemFeedback').textContent = err.message + ' Make sure this page is opened from the PC server LAN address.'; $('ecosystemFeedback').style.color = '#ffb6a5'; }
-});
+  const modes = {
+    voice: {
+      kicker: "VOICE INTERFACE",
+      title: "Speak to J.A.R.V.I.S.",
+      description: "Press Tab or tap the core to start voice mode."
+    },
+    chat: {
+      kicker: "CHAT INTERFACE",
+      title: "Chat with J.A.R.V.I.S.",
+      description: "Type your message and get an AI response."
+    },
+    writing: {
+      kicker: "WRITING INTERFACE",
+      title: "Writing Studio",
+      description: "Create drafts, emails, and polished text."
+    }
+  };
+
+  let toastTimer;
+
+  function toast(message) {
+    const el = $("toast");
+    el.textContent = message;
+    el.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
+  }
+
+  function setConnection(text, good = false) {
+    $("connectionLabel").textContent = text;
+    $("connectionLabel").style.color = good ? "var(--green)" : "";
+  }
+
+  function setMode(mode) {
+    if (!modes[mode]) return;
+
+    stopVoice(false);
+    state.mode = mode;
+
+    document.querySelectorAll(".view").forEach(el =>
+      el.classList.add("hidden")
+    );
+    $(`${mode}View`).classList.remove("hidden");
+
+    document.querySelectorAll(".nav-item").forEach(button => {
+      button.classList.toggle("active", button.dataset.mode === mode);
+    });
+
+    $("modeKicker").textContent = modes[mode].kicker;
+    $("modeTitle").textContent = modes[mode].title;
+    $("modeDescription").textContent = modes[mode].description;
+
+    closeSettings();
+
+    if (mode === "chat") setTimeout(() => $("chatInput").focus(), 50);
+    if (mode === "writing") setTimeout(() => $("writingTask").focus(), 50);
+  }
+
+  function openSettings() {
+    stopVoice(false);
+    $("settingsOverlay").classList.remove("hidden");
+    $("settingsClose").focus();
+  }
+
+  function closeSettings() {
+    $("settingsOverlay").classList.add("hidden");
+  }
+
+  async function checkServer() {
+    try {
+      const response = await fetch("/api/status", {
+        cache: "no-store"
+      });
+
+      if (!response.ok) throw new Error("Server unavailable");
+
+      setConnection("SERVER ONLINE", true);
+    } catch {
+      setConnection("SERVER STATUS UNKNOWN");
+    }
+  }
+
+  function createRecognition() {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      toast("Voice recognition is unavailable in this browser. Try Chrome or Edge.");
+      return null;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-IN";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      state.listening = true;
+      $("voiceView").classList.add("listening");
+      $("voiceStatus").textContent = "LISTENING";
+      $("sessionState").textContent = "● LISTENING";
+      $("voiceCaption").textContent = "I'm listening. Speak now.";
+      $("voiceToggle").textContent = "Listening…";
+      $("voiceStop").disabled = false;
+    };
+
+    recognition.onresult = event => {
+      let finalText = "";
+      let interimText = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const text = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalText += text;
+        else interimText += text;
+      }
+
+      const visibleText = (finalText || interimText).trim();
+
+      if (visibleText) {
+        $("transcriptText").textContent = visibleText;
+      }
+
+      if (finalText.trim()) {
+        sendToAI(finalText.trim(), "voice");
+      }
+    };
+
+    recognition.onerror = event => {
+      const errors = {
+        "not-allowed": "Allow microphone access in your browser settings.",
+        "no-speech": "No speech detected. Press Tab and try again.",
+        "audio-capture": "No microphone detected.",
+        "network": "Speech recognition needs a working network connection."
+      };
+
+      $("voiceCaption").textContent =
+        errors[event.error] || `Voice error: ${event.error}`;
+    };
+
+    recognition.onend = () => {
+      state.listening = false;
+      $("voiceView").classList.remove("listening");
+      $("voiceStatus").textContent = "VOICE STANDBY";
+      $("sessionState").textContent = "● STANDBY";
+      $("voiceToggle").textContent = "🎙 Start listening";
+      $("voiceStop").disabled = true;
+    };
+
+    return recognition;
+  }
+
+  function startVoice() {
+    if (state.listening) return;
+
+    if (!state.recognition) {
+      state.recognition = createRecognition();
+    }
+
+    if (!state.recognition) return;
+
+    $("voiceCaption").textContent = "Requesting microphone permission…";
+
+    try {
+      state.recognition.start();
+    } catch {
+      toast("Voice is already starting. Wait a moment and try again.");
+    }
+  }
+
+  function stopVoice(updateText = true) {
+    if (state.recognition && state.listening) {
+      try {
+        state.recognition.stop();
+      } catch {}
+    }
+
+    state.listening = false;
+    $("voiceView").classList.remove("listening");
+    $("voiceStatus").textContent = "VOICE STANDBY";
+    $("sessionState").textContent = "● STANDBY";
+    $("voiceToggle").textContent = "🎙 Start listening";
+    $("voiceStop").disabled = true;
+
+    if (updateText) {
+      $("voiceCaption").textContent = "Voice session stopped.";
+    }
+  }
+
+  function addMessage(type, text) {
+    const row = document.createElement("div");
+    row.className = `message ${type}`;
+
+    const avatar = document.createElement("b");
+    avatar.textContent = type === "user" ? "Y" : "V";
+
+    const content = document.createElement("div");
+    const name = document.createElement("small");
+    name.textContent = type === "user"
+      ? "YOU"
+      : "J.A.R.V.I.S. · GEMINI 2.5 FLASH";
+
+    const paragraph = document.createElement("p");
+    paragraph.textContent = text;
+
+    content.append(name, paragraph);
+    row.append(avatar, content);
+    $("chatMessages").appendChild(row);
+    $("chatMessages").scrollTop = $("chatMessages").scrollHeight;
+
+    return paragraph;
+  }
+
+  async function sendToAI(message, source) {
+    message = String(message || "").trim();
+
+    if (!message || state.busy) return;
+
+    state.busy = true;
+    let answerElement = null;
+
+    if (source === "chat") {
+      addMessage("user", message);
+      answerElement = addMessage("assistant", "Thinking…");
+      $("chatInput").value = "";
+    }
+
+    if (source === "voice") {
+      $("voiceCaption").textContent = "Thinking about your request…";
+    }
+
+    if (source === "writing") {
+      $("writingResult").classList.remove("hidden");
+      $("draftText").textContent = "Preparing your draft…";
+    }
+
+    const prompt = source === "writing"
+      ? "You are J.A.R.V.I.S., assisting in Writing Studio. Create a polished, ready-to-use result for this request. Follow the requested format.\n\nRequest: " + message
+      : message;
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: prompt,
+          history: state.history.slice(-12),
+          provider: "gemini",
+          model: "gemini-2.5-flash",
+          role: "jarvis",
+          ...(state.apiKey ? { apiKey: state.apiKey } : {})
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || `AI request failed (${response.status})`);
+      }
+
+      const answer = String(
+        data.answer || data.reply || data.text || ""
+      ).trim();
+
+      if (!answer) {
+        throw new Error("Empty response received from the server.");
+      }
+
+      state.history.push(
+        { role: "user", text: message },
+        { role: "model", text: answer }
+      );
+      state.history = state.history.slice(-24);
+
+      if (source === "chat") {
+        answerElement.textContent = answer;
+      }
+
+      if (source === "writing") {
+        $("draftText").textContent = answer;
+      }
+
+      if (source === "voice") {
+        $("voiceCaption").textContent =
+          answer.length > 180 ? answer.slice(0, 177) + "…" : answer;
+        speak(answer);
+      }
+
+      setConnection("AI RESPONSE RECEIVED", true);
+
+    } catch (error) {
+      const messageText = error.message || "Could not connect to AI.";
+
+      if (source === "chat" && answerElement) {
+        answerElement.textContent = "Request failed: " + messageText;
+      } else if (source === "writing") {
+        $("draftText").textContent = "Request failed: " + messageText;
+      } else {
+        $("voiceCaption").textContent = messageText;
+      }
+
+      setConnection("AI REQUEST FAILED");
+      toast(messageText);
+
+    } finally {
+      state.busy = false;
+    }
+  }
+
+  function speak(text) {
+    if (!("speechSynthesis" in window)) return;
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "en-IN";
+    utterance.rate = 1;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function saveSessionKey() {
+    const key = $("apiKeyInput").value.trim();
+
+    if (!key) {
+      toast("Paste your Gemini API key first.");
+      return;
+    }
+
+    state.apiKey = key;
+    sessionStorage.setItem("visionbot_key", key);
+    $("apiKeyInput").value = "";
+    $("keyStatus").textContent = "Saved for this browser tab session.";
+    toast("Key saved for this tab session.");
+  }
+
+  function bindEvents() {
+    $("settingsOpen").addEventListener("click", openSettings);
+    $("settingsClose").addEventListener("click", closeSettings);
+    $("settingsDone").addEventListener("click", closeSettings);
+
+    $("settingsOverlay").addEventListener("click", event => {
+      if (event.target === $("settingsOverlay")) closeSettings();
+    });
+
+    document.querySelectorAll("[data-mode]").forEach(button => {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    });
+
+    $("voiceCore").addEventListener("click", () => {
+      state.listening ? stopVoice() : startVoice();
+    });
+
+    $("voiceToggle").addEventListener("click", () => {
+      state.listening ? stopVoice() : startVoice();
+    });
+
+    $("voiceStop").addEventListener("click", () => stopVoice());
+
+    $("chatForm").addEventListener("submit", event => {
+      event.preventDefault();
+      sendToAI($("chatInput").value, "chat");
+    });
+
+    $("chatInput").addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        $("chatForm").requestSubmit();
+      }
+    });
+
+    $("writingForm").addEventListener("submit", event => {
+      event.preventDefault();
+
+      const task = $("writingTask").value.trim();
+
+      if (!task) {
+        toast("Enter a writing request first.");
+        $("writingTask").focus();
+        return;
+      }
+
+      sendToAI(task, "writing");
+    });
+
+    $("copyDraft").addEventListener("click", async () => {
+      const text = $("draftText").textContent;
+
+      try {
+        await navigator.clipboard.writeText(text);
+        toast("Draft copied.");
+      } catch {
+        toast("Clipboard access is unavailable. Select the draft and press Ctrl+C.");
+      }
+    });
+
+    $("saveKey").addEventListener("click", saveSessionKey);
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        if (!$("settingsOverlay").classList.contains("hidden")) {
+          closeSettings();
+        } else {
+          stopVoice();
+        }
+      }
+
+      const active = document.activeElement;
+      const editing = active &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(active.tagName) ||
+         active.isContentEditable);
+
+      // Tab activates voice only in Voice Mode and outside text fields.
+      if (
+        event.key === "Tab" &&
+        !event.shiftKey &&
+        !event.repeat &&
+        !editing &&
+        state.mode === "voice" &&
+        $("settingsOverlay").classList.contains("hidden")
+      ) {
+        event.preventDefault();
+        startVoice();
+      }
+    });
+  }
+
+  bindEvents();
+  setMode("voice");
+  checkServer();
+})();
