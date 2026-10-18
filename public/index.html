@@ -1,68 +1,130 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#030711"><meta name="description" content="Vision Bot — your AI headquarters"><title>Vision Bot — AI Headquarters</title>
-<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon-192.png"><link rel="stylesheet" href="/styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080b14">
+  <title>Vision Bot | J.A.R.V.I.S.</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
 </head>
 <body>
-<div class="ambient"></div>
-<div id="welcomeGate" class="welcome-gate" aria-labelledby="welcomeTitle">
-  <div class="welcome-grid"></div>
-  <div class="welcome-card">
-    <div class="welcome-symbol"><div class="welcome-ring"></div><div class="welcome-core">✦</div></div>
-    <div class="eyebrow"><span class="pulse-dot"></span> PERSONAL AI SYSTEM</div>
-    <h1 id="welcomeTitle">Meet <span>Vision Bot</span></h1>
-    <p class="welcome-copy">Your personal AI headquarters for ideas, research, coding and everyday tasks.</p>
-    <div id="welcomeStepStart"><button id="getStarted" class="primary-btn welcome-start">Get Started <span>↗</span></button><p class="welcome-note">Six specialist modes · Voice support · Image analysis</p></div>
-    <form id="welcomeProfile" class="welcome-profile hidden">
-      <label for="welcomeName">What should your assistant call you?</label>
-      <input id="welcomeName" maxlength="60" placeholder="Enter your name (optional)" autocomplete="nickname">
-      <label class="remember-choice"><input id="rememberDevice" type="checkbox" checked> Remember me on this device</label>
-      <button class="primary-btn welcome-start" type="submit">Enter Vision Bot <span>→</span></button>
-      <p class="welcome-note">This remembers your profile in this browser; it is not a secure account login.</p>
-    </form>
-  </div>
-  <div class="welcome-bottom">VISION BOT <span>•</span> BUILT FOR YOUR NEXT IDEA</div>
-</div>
-<header class="topbar"><a class="brand-mini" href="#home" aria-label="Vision Bot home"><span class="mini-core">✦</span><span>VISION <b>BOT</b></span></a><div class="top-actions"><span id="connection" class="connection"><i></i> Checking system</span><button class="icon-btn" id="settingsOpen" aria-label="Open settings" title="Settings">⚙</button></div></header>
-<main id="home" class="layout">
-<section class="hero panel"><div class="eyebrow"><span class="pulse-dot"></span> PERSONAL AI HEADQUARTERS</div><div class="reactor-wrap" aria-label="Animated Vision Bot reactor"><div class="reactor"><div class="r r1"></div><div class="r r2"></div><div class="r r3"></div><div class="r r4"></div><div class="reactor-core"><span>✦</span></div><i class="orbit o1"></i><i class="orbit o2"></i></div></div><h1 id="greeting">Welcome to <span>Vision Bot</span></h1><p class="subtitle" id="subtitle">Your AI headquarters is ready.</p><div class="system-state" id="systemState"><span class="state-light"></span><span>J.A.R.V.I.S. READY</span></div><button id="talkBtn" class="primary-btn"><span class="mic-symbol">🎙</span><span id="talkLabel">Tap to talk</span></button><p class="hint">Voice input depends on browser support. You can always type below.</p></section>
-<section class="workbench panel"><div class="section-head"><div><div class="eyebrow">COMMAND INTERFACE</div><h2>Talk to your AI</h2></div><button id="clearChat" class="quiet-btn">Clear chat</button></div><div class="role-row"><label for="roleSelect">Active specialist</label><select id="roleSelect"><option value="jarvis">J.A.R.V.I.S. · Main assistant</option><option value="ultron">ULTRON · Research lead</option><option value="friday">F.R.I.D.A.Y. · Personal assistant</option><option value="edith">E.D.I.T.H. · Visual intelligence</option><option value="calith">CALITH · Safety guardian</option><option value="leo">LEO · Coding expert</option></select></div><div id="messages" class="messages" aria-live="polite"><div class="empty-chat"><div class="empty-mark">✦</div><b>Your conversation starts here</b><p>Ask a question, dictate a message, or choose an image to analyze.</p></div></div><div id="imagePreview" class="image-preview hidden"><span id="imageName"></span><button id="removeImage" aria-label="Remove image">×</button></div><form id="chatForm" class="composer"><textarea id="messageInput" rows="1" placeholder="Ask Vision Bot anything…" aria-label="Your message"></textarea><div class="composer-tools"><div class="tool-left"><button type="button" class="tool-btn" id="screenBtn" title="Choose an image to analyze">▧ <span>Analyze image</span></button><label class="tool-btn upload-btn" for="imageInput" title="Select an image">＋ <span>Attach image</span></label><input id="imageInput" type="file" accept="image/png,image/jpeg,image/webp" hidden></div><button class="send-btn" id="sendBtn" type="submit">Send ↗</button></div></form><p class="privacy-note">Images are sent to Gemini only after you press Send. Nothing is captured automatically.</p></section>
-<section class="ecosystem panel" id="ecosystem">
-  <div class="section-head"><div><div class="eyebrow">DEVICE ECOSYSTEM</div><h2>Connect your devices</h2></div><span class="ecosystem-badge">LOCAL NETWORK</span></div>
-  <p class="ecosystem-intro">Use your phone to send a safe “open website” command to the PC running Vision Bot. Both devices must be on the same Wi-Fi, and PC control must be enabled on that PC.</p>
-  <div class="ecosystem-grid">
-    <div class="ecosystem-tile"><b>Phone → PC</b><small>Open a website in the PC browser</small><label for="controlToken" class="field-label">PC pairing token</label><input id="controlToken" type="password" placeholder="Token from the PC .env file" autocomplete="off"><label for="openUrlInput" class="field-label">Website to open on PC</label><input id="openUrlInput" type="url" placeholder="https://example.com" value="https://google.com"><button id="openOnPc" class="primary-btn">Open on PC ↗</button><p id="ecosystemFeedback" class="feedback" aria-live="polite"></p></div>
-    <div class="ecosystem-tile"><b>PC ↔ Mobile / device-to-device</b><small>Requires a paired companion app with explicit permissions. A browser page alone cannot safely control phone apps or system settings.</small><ul><li>PC-to-PC: install and pair the local agent on each PC.</li><li>PC-to-Android: companion app and Android permissions required.</li><li>iPhone control: limited to approved Shortcuts and app integrations.</li></ul><span class="ecosystem-status">Companion agent: not connected</span></div>
-  </div>
-  <p class="privacy-note">Safety: this prototype only sends an HTTP/HTTPS URL to open. It does not run arbitrary shell commands, read files, or secretly control devices.</p>
-</section>
+  <header class="topbar">
+    <a class="brand" href="/">◈ <span>VISION<strong>BOT</strong></span></a>
+    <div class="top-actions">
+      <span class="model-tag">● GEMINI 2.5 FLASH</span>
+      <button id="settingsOpen" class="icon-btn" aria-label="Settings">⚙</button>
+    </div>
+  </header>
 
-<section class="feature-deck panel" id="featureDeck">
-  <div class="section-head"><div><div class="eyebrow">VISION BOT ECOSYSTEM</div><h2>All features</h2></div><span class="ecosystem-badge">FEATURE HUB</span></div>
-  <p class="ecosystem-intro">Chat, voice, creator tools, memory, themes, and device controls in one place. Features that need the Windows companion or external provider credentials are clearly marked.</p>
-  <div class="feature-grid">
-    <button class="feature-card" data-feature="creator"><span class="feature-icon">⌘</span><b>Creator Studio</b><small>Website and code builder</small><em>Ready</em></button>
-    <button class="feature-card" data-feature="memory"><span class="feature-icon">◉</span><b>Memory & Projects</b><small>Local notes and project prompts</small><em>Ready</em></button>
-    <button class="feature-card" data-feature="theme"><span class="feature-icon">◈</span><b>Theme Studio</b><small>Colors, glow and motion</small><em>Ready</em></button>
-    <button class="feature-card" data-feature="voice"><span class="feature-icon">🎙</span><b>Voice & Languages</b><small>Hindi, English, Hinglish</small><em>Browser support</em></button>
-    <button class="feature-card" data-feature="wake"><span class="feature-icon">✦</span><b>Hey JARVIS</b><small>Background Windows wake word</small><em>Companion</em></button>
-    <button class="feature-card" data-feature="devices"><span class="feature-icon">▦</span><b>Trusted Devices</b><small>Pairing and permissions</small><em>Setup required</em></button>
-    <button class="feature-card" data-feature="files"><span class="feature-icon">⇧</span><b>Files & Clipboard</b><small>Export chats and copy text</small><em>Ready</em></button>
-    <button class="feature-card" data-feature="notifications"><span class="feature-icon">♧</span><b>Smart Notifications</b><small>Browser permission-based</small><em>Optional</em></button>
-    <button class="feature-card" data-feature="offline"><span class="feature-icon">⌁</span><b>Offline Emergency</b><small>Saved notes and local help</small><em>Limited offline</em></button>
-    <button class="feature-card" data-feature="providers"><span class="feature-icon">◎</span><b>AI Providers</b><small>Gemini 2.5 Flash + optional Grok</small><em>Provider adapters</em></button>
-    <button class="feature-card" data-feature="privacy"><span class="feature-icon">♢</span><b>Privacy & Security</b><small>Clear local data and permissions</small><em>Controls</em></button>
-    <button class="feature-card" data-feature="remote"><span class="feature-icon">↔</span><b>Remote Control</b><small>PC, mobile and file transfer</small><em>Companion required</em></button>
+  <main class="layout">
+    <section class="intro">
+      <div class="eyebrow">SYSTEM ONLINE / READY WHEN YOU ARE</div>
+      <h1>Your world.<br><span>Your command.</span></h1>
+      <p>Talk naturally. Think clearly. Get things done.</p>
+    </section>
+
+    <section class="workspace">
+      <nav class="sidebar" aria-label="Workspace">
+        <small>WORKSPACE</small>
+        <button class="nav-item active" data-mode="voice">◉ <span>Voice Mode</span></button>
+        <button class="nav-item" data-mode="chat">▤ <span>Chat Mode</span></button>
+        <button class="nav-item" data-mode="writing">✎ <span>Writing</span></button>
+        <div class="sidebar-bottom">● J.A.R.V.I.S. CORE<br><small>VISION BOT / 1.0</small></div>
+      </nav>
+
+      <section class="main-panel">
+        <div class="panel-heading">
+          <div>
+            <small id="modeKicker">VOICE INTERFACE</small>
+            <h2 id="modeTitle">Speak to J.A.R.V.I.S.</h2>
+            <p id="modeDescription">Press Tab or tap the core to start voice mode.</p>
+          </div>
+          <span class="standby" id="sessionState">● STANDBY</span>
+        </div>
+
+        <section id="voiceView" class="view voice-view">
+          <button id="voiceCore" class="voice-core" aria-label="Start voice recognition">
+            <span>V</span><i>•••••</i>
+          </button>
+          <div id="voiceStatus" class="voice-status">VOICE STANDBY</div>
+          <p id="voiceCaption" class="voice-caption">Your assistant is ready.</p>
+          <div class="voice-actions">
+            <button id="voiceToggle" class="primary">🎙 Start listening</button>
+            <button id="voiceStop" class="secondary" disabled>Stop</button>
+          </div>
+          <div class="transcript">
+            <small>LIVE TRANSCRIPT</small>
+            <p id="transcriptText">Your spoken words will appear here…</p>
+          </div>
+          <p class="keyboard-hint"><kbd>Tab</kbd> Start voice <span>·</span> <kbd>Esc</kbd> Stop voice</p>
+        </section>
+
+        <section id="chatView" class="view hidden">
+          <div id="chatMessages" class="messages" aria-live="polite">
+            <div class="message assistant">
+              <b>V</b><div><small>J.A.R.V.I.S.</small><p>Hello. I'm ready to help. What would you like to work on?</p></div>
+            </div>
+          </div>
+          <form id="chatForm" class="composer">
+            <textarea id="chatInput" rows="2" placeholder="Ask J.A.R.V.I.S. anything…" aria-label="Message"></textarea>
+            <button class="primary send" type="submit">Send ↗</button>
+          </form>
+          <small class="hint">Enter to send · Shift + Enter for a new line</small>
+        </section>
+
+        <section id="writingView" class="view hidden">
+          <div class="writing-heading"><span>✎</span><div><h3>Writing Studio</h3><p>Draft, rewrite, polish, or plan your next piece.</p></div></div>
+          <form id="writingForm" class="writing-form">
+            <label for="writingTask">WHAT WOULD YOU LIKE TO WRITE?</label>
+            <textarea id="writingTask" rows="5" placeholder="Example: Write a professional email to a customer…"></textarea>
+            <button class="primary" type="submit">Create draft ↗</button>
+          </form>
+          <div id="writingResult" class="result hidden">
+            <div class="result-top"><small>YOUR DRAFT</small><button id="copyDraft" class="text-btn" type="button">Copy text</button></div>
+            <pre id="draftText"></pre>
+          </div>
+        </section>
+
+        <footer class="panel-footer">
+          <span>● J.A.R.V.I.S. CORE</span>
+          <span>GEMINI 2.5 FLASH</span>
+          <span id="connectionLabel">CHECKING SERVER…</span>
+        </footer>
+      </section>
+    </section>
+    <footer class="page-footer">VISION BOT <span>ONE INTERFACE. THREE WAYS TO WORK.</span></footer>
+  </main>
+
+  <div id="settingsOverlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <section class="settings">
+      <div class="settings-top">
+        <div><small>PREFERENCES</small><h2 id="settingsTitle">Settings</h2></div>
+        <button id="settingsClose" class="icon-btn" aria-label="Close settings">×</button>
+      </div>
+      <p class="settings-desc">Choose a mode. Your assistant identity stays fixed as J.A.R.V.I.S.</p>
+
+      <small class="section-label">OPEN A MODE</small>
+      <button class="mode-choice" data-mode="voice"><span>◉</span><div><b>Voice Mode</b><small>Speak using your microphone</small></div>↗</button>
+      <button class="mode-choice" data-mode="chat"><span>▤</span><div><b>Chat Mode</b><small>Type and receive AI replies</small></div>↗</button>
+      <button class="mode-choice" data-mode="writing"><span>✎</span><div><b>Writing Mode</b><small>Create drafts and polished text</small></div>↗</button>
+
+      <div class="engine">
+        <small class="section-label">FIXED AI ENGINE</small>
+        <div class="engine-row"><span>✦</span><div><b>Google Gemini 2.5 Flash</b><small>Default model · assistant switching disabled</small></div><strong>DEFAULT</strong></div>
+      </div>
+
+      <div class="key-section">
+        <label for="apiKeyInput" class="section-label">OPTIONAL GEMINI API KEY</label>
+        <input id="apiKeyInput" type="password" autocomplete="off" placeholder="Paste key for this browser session">
+        <p>Safer option: set GEMINI_API_KEY in Render Environment. Never share your API key publicly.</p>
+        <button id="saveKey" class="secondary" type="button">Use for this session</button>
+        <small id="keyStatus" role="status"></small>
+      </div>
+      <div class="settings-bottom"><span>● Fixed assistant identity</span><button id="settingsDone" class="primary">Done</button></div>
+    </section>
   </div>
-</section>
-
-<section class="quick-grid"><button class="quick-card" data-prompt="Help me plan my day with a clear, realistic schedule."><span class="quick-icon">◷</span><b>Plan my day</b><small>Build a practical plan</small></button><button class="quick-card" data-prompt="Explain the latest developments I should research about my topic. Tell me what you can and cannot verify live."><span class="quick-icon">⌕</span><b>Research help</b><small>Explore a topic</small></button><button class="quick-card" data-prompt="Help me build a responsive website. First ask me what the website is for, then propose a clean structure."><span class="quick-icon">⌘</span><b>Build a website</b><small>Code with LEO</small></button><button class="quick-card" id="settingsCard"><span class="quick-icon">⚙</span><b>Personalize</b><small>Voice, name and API</small></button></section>
-</main>
-<footer>VISION BOT <span>•</span> YOUR AI HEADQUARTERS <span class="footer-right">Built for your device</span></footer>
-<div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle"><div class="modal-backdrop" data-close="true"></div><section class="settings panel"><div class="settings-head"><div><div class="eyebrow">SYSTEM CONFIGURATION</div><h2 id="settingsTitle">Settings</h2></div><button id="settingsClose" class="icon-btn" aria-label="Close settings">×</button></div><form id="settingsForm"><label class="field-label" for="displayName">What should J.A.R.V.I.S. call you?</label><input id="displayName" maxlength="60" placeholder="Your name" autocomplete="nickname"><label class="field-label" for="providerSelect">AI provider</label><select id="providerSelect"><option value="gemini">Google Gemini</option><option value="grok">Grok (xAI)</option></select><label class="field-label" for="modelInput">Model ID</label><input id="modelInput" value="gemini-2.5-flash" placeholder="gemini-2.5-flash" autocomplete="off"><p class="field-help">Gemini default: gemini-2.5-flash. Grok model IDs depend on the models returned for your xAI account; use Test connection to list available models.</p><label class="field-label" for="apiKey" id="apiKeyLabel">Gemini API key</label><input id="apiKey" type="password" placeholder="Paste your own Gemini API key" autocomplete="off"><p class="field-help">Keys are kept only in this page session and sent to the server for the request; they are not saved in browser storage. For a private local server, use GEMINI_API_KEY or XAI_API_KEY in .env. Never use a personal key on a public shared server.</p><div class="setting-row"><div><b>Speak replies aloud</b><small>Uses your device/browser voice</small></div><input id="speakReplies" type="checkbox" checked></div><div class="setting-row"><div><b>Voice-first mode</b><small>Try speech recognition when supported</small></div><input id="voiceFirst" type="checkbox"></div><div class="settings-actions"><button type="button" class="quiet-btn" id="testKey">Test connection</button><button type="submit" class="primary-btn save-btn">Save settings</button></div><p id="settingsFeedback" class="feedback" aria-live="polite"></p></form></section></div>
-
-<div id="featureModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="featureModalTitle"><div class="modal-backdrop" data-feature-close="true"></div><section class="settings panel feature-modal-panel"><div class="settings-head"><div><div class="eyebrow">FEATURE WORKSPACE</div><h2 id="featureModalTitle">Feature</h2></div><button id="featureClose" class="icon-btn" aria-label="Close feature">×</button></div><div id="featureBody"></div></section></div>
-<div id="toast" class="toast" role="status"></div>
-<script src="/app.js" defer></script>
-</body></html>
+  <div id="toast" class="toast" role="status"></div>
+</body>
+</html>
